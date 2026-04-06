@@ -3,6 +3,7 @@ This module contains the argument manager class
 """
 
 from argparse import ArgumentParser, Namespace, _ArgumentGroup
+from copy import deepcopy
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -49,11 +50,13 @@ ARGS_BACKTEST = [
     *ARGS_COMMON_OPTIMIZE,
     "position_stacking",
     "enable_protections",
+    "enable_dynamic_pairlist",
     "dry_run_wallet",
     "timeframe_detail",
     "strategy_list",
     "export",
     "exportfilename",
+    "exportdirectory",
     "backtest_breakdown",
     "backtest_cache",
     "freqai_backtest_live_models",
@@ -62,7 +65,6 @@ ARGS_BACKTEST = [
 
 ARGS_HYPEROPT = [
     *ARGS_COMMON_OPTIMIZE,
-    "hyperopt",
     "hyperopt_path",
     "position_stacking",
     "enable_protections",
@@ -94,11 +96,22 @@ ARGS_LIST_FREQAIMODELS = ["freqaimodel_path", "print_one_column"]
 
 ARGS_LIST_HYPEROPTS = ["hyperopt_path", "print_one_column"]
 
-ARGS_BACKTEST_SHOW = ["exportfilename", "backtest_show_pair_list", "backtest_breakdown"]
+ARGS_BACKTEST_SHOW = [
+    "exportfilename",
+    "exportdirectory",
+    "backtest_show_pair_list",
+    "backtest_breakdown",
+]
 
-ARGS_LIST_EXCHANGES = ["print_one_column", "list_exchanges_all"]
+ARGS_LIST_EXCHANGES = [
+    "print_one_column",
+    "list_exchanges_all",
+    "trading_mode",
+    "dex_exchanges",
+    "list_exchanges_futures_options",
+]
 
-ARGS_LIST_TIMEFRAMES = ["exchange", "print_one_column"]
+ARGS_LIST_TIMEFRAMES = ["exchange", "print_one_column", "trading_mode"]
 
 ARGS_LIST_PAIRS = [
     "exchange",
@@ -158,6 +171,7 @@ ARGS_DOWNLOAD_DATA = [
     "days",
     "new_pairs_days",
     "include_inactive",
+    "no_parallel_download",
     "timerange",
     "download_trades",
     "convert_trades",
@@ -167,6 +181,7 @@ ARGS_DOWNLOAD_DATA = [
     "dataformat_ohlcv",
     "dataformat_trades",
     "trading_mode",
+    "candle_types",
     "prepend_data",
 ]
 
@@ -233,6 +248,7 @@ ARGS_HYPEROPT_SHOW = [
 
 ARGS_ANALYZE_ENTRIES_EXITS = [
     "exportfilename",
+    "exportdirectory",
     "analysis_groups",
     "enter_reason_list",
     "exit_reason_list",
@@ -252,7 +268,12 @@ ARGS_LOOKAHEAD_ANALYSIS = [
     a
     for a in ARGS_BACKTEST
     if a not in ("position_stacking", "backtest_cache", "backtest_breakdown", "backtest_notes")
-] + ["minimum_trade_amount", "targeted_trade_amount", "lookahead_analysis_exportfilename"]
+] + [
+    "minimum_trade_amount",
+    "targeted_trade_amount",
+    "lookahead_analysis_exportfilename",
+    "lookahead_allow_limit_orders",
+]
 
 ARGS_RECURSIVE_ANALYSIS = ["timeframe", "timerange", "dataformat_ohlcv", "pairs", "startup_candle"]
 
@@ -335,7 +356,11 @@ class Arguments:
     def _build_args(self, optionlist: list[str], parser: ArgumentParser | _ArgumentGroup) -> None:
         for val in optionlist:
             opt = AVAILABLE_CLI_OPTIONS[val]
-            parser.add_argument(*opt.cli, dest=val, **opt.kwargs)
+            options = deepcopy(opt.kwargs)
+            help_text = options.pop("help", None)
+            if opt.fthelp and isinstance(opt.fthelp, dict) and hasattr(parser, "prog"):
+                help_text = opt.fthelp.get(parser.prog, help_text)
+            parser.add_argument(*opt.cli, dest=val, help=help_text, **options)
 
     def _build_subcommands(self) -> None:
         """
